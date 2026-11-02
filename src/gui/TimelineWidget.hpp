@@ -25,6 +25,7 @@ public:
 
     int addClip(int track, const QString &name, double startSeconds,
                 double durationSeconds, const QColor &color);
+    void setSnapEnabled(bool enabled);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -66,6 +67,7 @@ private:
     QPoint m_pressPosition;
     double m_originalStart = 0.0;
     double m_originalDuration = 1.0;
+    bool m_snapEnabled = true;
 };
 
 } // namespace CreatorForge
