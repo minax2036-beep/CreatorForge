@@ -550,6 +550,7 @@ void MainWindow::createTimelinePanel()
     auto *addVideoButton = new QPushButton("+ Video", container);
     auto *addSubtitleButton = new QPushButton("+ Subtitle", container);
     auto *addAudioButton = new QPushButton("+ Audio", container);
+    auto *addSfxButton = new QPushButton("+ SFX", container);
     auto *addVideoTrackButton = new QPushButton("+ V Track", container);
     auto *addSubtitleTrackButton = new QPushButton("+ T Track", container);
     auto *addAudioTrackButton = new QPushButton("+ A Track", container);
@@ -560,6 +561,7 @@ void MainWindow::createTimelinePanel()
     toolbar->addWidget(addVideoButton);
     toolbar->addWidget(addSubtitleButton);
     toolbar->addWidget(addAudioButton);
+    toolbar->addWidget(addSfxButton);
     toolbar->addWidget(addVideoTrackButton);
     toolbar->addWidget(addSubtitleTrackButton);
     toolbar->addWidget(addAudioTrackButton);
@@ -692,6 +694,36 @@ void MainWindow::createTimelinePanel()
         const int index = m_timelineWidget->addTrack(
             QString("SFX%1  Effects").arg(m_timelineWidget->lastTrackOfType(TimelineWidget::EffectsTrack) + 1), QColor("#a47736"));
         statusBar()->showMessage(QString("Effects track %1 added.").arg(index + 1), 2500);
+    });
+
+    connect(addSfxButton, &QPushButton::clicked, this, [this] {
+        const QString path = QFileDialog::getOpenFileName(
+            this, "Add Sound Effect", {},
+            "Sound Files (*.wav *.mp3 *.flac *.ogg *.m4a *.aac);;All Files (*)");
+        if (path.isEmpty())
+            return;
+
+        const double mediaDuration = probeMediaDuration(path);
+        bool accepted = false;
+        const double start = QInputDialog::getDouble(
+            this, "Sound Effect Start", "Timeline start time (seconds):",
+            0.0, 0.0, 86400.0, 2, &accepted);
+        if (!accepted)
+            return;
+
+        const double defaultDuration = mediaDuration > 0.0 ? mediaDuration : 3.0;
+        const double maximumDuration = mediaDuration > 0.0 ? mediaDuration : 86400.0;
+        const double duration = QInputDialog::getDouble(
+            this, "Sound Effect Duration", "Clip duration (seconds):",
+            defaultDuration, 0.25, maximumDuration, 2, &accepted);
+        if (!accepted)
+            return;
+
+        m_timelineWidget->addClip(
+            m_timelineWidget->lastTrackOfType(TimelineWidget::EffectsTrack),
+            QFileInfo(path).fileName(), start, duration, QColor("#a47736"),
+            path, mediaDuration);
+        statusBar()->showMessage("Sound effect clip added to the SFX track.", 3000);
     });
 
     connect(snapButton, &QPushButton::toggled, this, [this, snapButton](bool enabled) {
