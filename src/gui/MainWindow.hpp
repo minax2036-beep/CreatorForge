@@ -9,6 +9,8 @@ class QWidget;
 
 namespace CreatorForge {
 
+class TimelineWidget;
+
 class MainWindow final : public QMainWindow
 {
 public:
@@ -24,6 +26,7 @@ private:
     QListWidget *m_mediaList = nullptr;
     QLabel *m_previewLabel = nullptr;
     QTreeWidget *m_propertiesTree = nullptr;
+    TimelineWidget *m_timelineWidget = nullptr;
 };
 
 } // namespace CreatorForge
