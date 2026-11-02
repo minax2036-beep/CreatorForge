@@ -16,6 +16,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QProcess>
 #include <QScrollArea>
 #include <QStatusBar>
 #include <QToolBar>
@@ -34,6 +35,25 @@ QLabel *makeSectionLabel(const QString &text, QWidget *parent)
     auto *label = new QLabel(text, parent);
     label->setObjectName("sectionLabel");
     return label;
+}
+
+double probeMediaDuration(const QString &path)
+{
+    QProcess process;
+    process.start("ffprobe", {
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        path
+    });
+
+    if (!process.waitForStarted(1000) || !process.waitForFinished(3000))
+        return 0.0;
+
+    bool ok = false;
+    const double duration = QString::fromUtf8(process.readAllStandardOutput())
+                                .trimmed().toDouble(&ok);
+    return ok && duration > 0.0 ? duration : 0.0;
 }
 
 } // namespace
@@ -422,11 +442,13 @@ void MainWindow::createTimelinePanel()
     toolbar->addWidget(time);
     toolbar->addStretch();
 
+    auto *addVideoButton = new QPushButton("+ Video", container);
     auto *addSubtitleButton = new QPushButton("+ Subtitle", container);
     auto *addAudioButton = new QPushButton("+ Audio", container);
     auto *snapButton = new QPushButton("Snap: ON", container);
     snapButton->setCheckable(true);
     snapButton->setChecked(true);
+    toolbar->addWidget(addVideoButton);
     toolbar->addWidget(addSubtitleButton);
     toolbar->addWidget(addAudioButton);
     toolbar->addWidget(snapButton);
@@ -443,6 +465,42 @@ void MainWindow::createTimelinePanel()
     scrollArea->setStyleSheet(
         "QScrollArea { background: #171b22; border: 1px solid #303744; border-radius: 4px; }");
     layout->addWidget(scrollArea, 1);
+
+    connect(addVideoButton, &QPushButton::clicked, this, [this] {
+        const QString path = QFileDialog::getOpenFileName(
+            this, "Add Video Clip", {},
+            "Video Files (*.mp4 *.mkv *.mov *.webm *.avi *.m4v);;All Files (*)");
+        if (path.isEmpty())
+            return;
+
+        double mediaDuration = probeMediaDuration(path);
+        bool accepted = false;
+        if (mediaDuration <= 0.0) {
+            mediaDuration = QInputDialog::getDouble(
+                this, "Video Duration",
+                "Could not read duration with ffprobe. Enter duration (seconds):",
+                10.0, 0.25, 86400.0, 2, &accepted);
+            if (!accepted)
+                return;
+        }
+
+        const double start = QInputDialog::getDouble(
+            this, "Video Start", "Timeline start time (seconds):",
+            0.0, 0.0, 86400.0, 2, &accepted);
+        if (!accepted)
+            return;
+
+        const double duration = QInputDialog::getDouble(
+            this, "Video Duration", "Clip duration (seconds):",
+            mediaDuration, 0.25, mediaDuration, 2, &accepted);
+        if (!accepted)
+            return;
+
+        m_timelineWidget->addClip(TimelineWidget::VideoTrack,
+            QFileInfo(path).fileName(), start, duration, QColor("#3975b9"),
+            path, mediaDuration);
+        statusBar()->showMessage("Video clip added to V1.", 3000);
+    });
 
     connect(addSubtitleButton, &QPushButton::clicked, this, [this] {
         bool accepted = false;
@@ -473,22 +531,28 @@ void MainWindow::createTimelinePanel()
         if (path.isEmpty())
             return;
 
+        const double mediaDuration = probeMediaDuration(path);
         bool accepted = false;
         const double start = QInputDialog::getDouble(
-            this, "Audio Start", "Start time (seconds):", 0.0, 0.0, 86400.0, 2, &accepted);
+            this, "Audio Start", "Timeline start time (seconds):",
+            0.0, 0.0, 86400.0, 2, &accepted);
         if (!accepted)
             return;
 
+        const double defaultDuration = mediaDuration > 0.0 ? mediaDuration : 10.0;
+        const double maximumDuration = mediaDuration > 0.0 ? mediaDuration : 86400.0;
         const double duration = QInputDialog::getDouble(
-            this, "Audio Duration", "Clip duration (seconds):", 10.0, 0.25, 86400.0, 2, &accepted);
+            this, "Audio Duration",
+            mediaDuration > 0.0 ? "Clip duration (seconds):"
+                               : "ffprobe unavailable. Enter clip duration (seconds):",
+            defaultDuration, 0.25, maximumDuration, 2, &accepted);
         if (!accepted)
             return;
 
-        const QString name = QFileInfo(path).fileName();
         m_timelineWidget->addClip(TimelineWidget::AudioTrack,
-                                  name, start, duration, QColor("#287c68"), path);
-        statusBar()->showMessage(
-            "Audio clip added to A1 (timeline placement only; playback integration is next).", 5000);
+            QFileInfo(path).fileName(), start, duration, QColor("#287c68"),
+            path, mediaDuration);
+        statusBar()->showMessage("Audio clip added to A1.", 3000);
     });
 
     connect(snapButton, &QPushButton::toggled, this, [this, snapButton](bool enabled) {
