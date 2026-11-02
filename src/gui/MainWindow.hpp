@@ -5,6 +5,7 @@
 class QLabel;
 class QListWidget;
 class QMediaPlayer;
+class QPushButton;
 class QAudioOutput;
 class QSlider;
 class QStackedWidget;
