@@ -29,6 +29,7 @@ private:
     void createPropertiesPanel();
     void createTimelinePanel();
     void setPreviewMedia(const QString &path);
+    void setVideoAudioMuted(bool muted);
 
     QListWidget *m_mediaList = nullptr;
     QLabel *m_previewLabel = nullptr;
@@ -42,6 +43,7 @@ private:
     QStackedWidget *m_previewStack = nullptr;
     QSlider *m_positionSlider = nullptr;
     bool m_isSeeking = false;
+    QPushButton *m_videoAudioButton = nullptr;
 };
 
 } // namespace CreatorForge
