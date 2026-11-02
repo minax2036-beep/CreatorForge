@@ -6,6 +6,7 @@
 #include <QSize>
 #include <QString>
 #include <QWidget>
+#include <functional>
 
 #include <vector>
 
@@ -30,6 +31,8 @@ public:
                 double sourceDurationSeconds = 0.0,
                 double sourceOffsetSeconds = 0.0);
     void setSnapEnabled(bool enabled);
+    void setPlayheadSeconds(double seconds);
+    void setSeekCallback(std::function<void(double)> callback);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -76,6 +79,8 @@ private:
     double m_originalDuration = 1.0;
     double m_originalSourceOffset = 0.0;
     bool m_snapEnabled = true;
+    double m_playheadSeconds = 0.0;
+    std::function<void(double)> m_seekCallback;
 };
 
 } // namespace CreatorForge
