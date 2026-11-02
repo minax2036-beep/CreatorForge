@@ -550,12 +550,20 @@ void MainWindow::createTimelinePanel()
     auto *addVideoButton = new QPushButton("+ Video", container);
     auto *addSubtitleButton = new QPushButton("+ Subtitle", container);
     auto *addAudioButton = new QPushButton("+ Audio", container);
+    auto *addVideoTrackButton = new QPushButton("+ V Track", container);
+    auto *addSubtitleTrackButton = new QPushButton("+ T Track", container);
+    auto *addAudioTrackButton = new QPushButton("+ A Track", container);
+    auto *addEffectsTrackButton = new QPushButton("+ SFX Track", container);
     auto *snapButton = new QPushButton("Snap: ON", container);
     snapButton->setCheckable(true);
     snapButton->setChecked(true);
     toolbar->addWidget(addVideoButton);
     toolbar->addWidget(addSubtitleButton);
     toolbar->addWidget(addAudioButton);
+    toolbar->addWidget(addVideoTrackButton);
+    toolbar->addWidget(addSubtitleTrackButton);
+    toolbar->addWidget(addAudioTrackButton);
+    toolbar->addWidget(addEffectsTrackButton);
     toolbar->addWidget(snapButton);
     layout->addLayout(toolbar);
 
@@ -604,7 +612,7 @@ void MainWindow::createTimelinePanel()
         if (!accepted)
             return;
 
-        m_timelineWidget->addClip(TimelineWidget::VideoTrack,
+        m_timelineWidget->addClip(m_timelineWidget->lastTrackOfType(TimelineWidget::VideoTrack),
             QFileInfo(path).fileName(), start, duration, QColor("#3975b9"),
             path, mediaDuration);
         setPreviewMedia(path);
@@ -628,7 +636,7 @@ void MainWindow::createTimelinePanel()
         if (!accepted)
             return;
 
-        m_timelineWidget->addClip(TimelineWidget::SubtitleTrack,
+        m_timelineWidget->addClip(m_timelineWidget->lastTrackOfType(TimelineWidget::SubtitleTrack),
                                   text, start, duration, QColor("#7654a8"));
         statusBar()->showMessage("Subtitle clip added to T1.", 3000);
     });
@@ -658,10 +666,32 @@ void MainWindow::createTimelinePanel()
         if (!accepted)
             return;
 
-        m_timelineWidget->addClip(TimelineWidget::AudioTrack,
+        m_timelineWidget->addClip(m_timelineWidget->lastTrackOfType(TimelineWidget::AudioTrack),
             QFileInfo(path).fileName(), start, duration, QColor("#287c68"),
             path, mediaDuration);
         statusBar()->showMessage("Audio clip added to A1.", 3000);
+    });
+
+    connect(addVideoTrackButton, &QPushButton::clicked, this, [this] {
+        const int index = m_timelineWidget->addTrack(
+            QString("V%1  Video").arg(m_timelineWidget->lastTrackOfType(TimelineWidget::VideoTrack) + 2),
+            QColor("#3975b9"));
+        statusBar()->showMessage(QString("Video track %1 added.").arg(index + 1), 2500);
+    });
+    connect(addSubtitleTrackButton, &QPushButton::clicked, this, [this] {
+        const int index = m_timelineWidget->addTrack(
+            QString("T%1  Subtitle").arg(m_timelineWidget->lastTrackOfType(TimelineWidget::SubtitleTrack) + 2), QColor("#7654a8"));
+        statusBar()->showMessage(QString("Subtitle track %1 added.").arg(index + 1), 2500);
+    });
+    connect(addAudioTrackButton, &QPushButton::clicked, this, [this] {
+        const int index = m_timelineWidget->addTrack(
+            QString("A%1  Audio").arg(m_timelineWidget->lastTrackOfType(TimelineWidget::AudioTrack) + 2), QColor("#287c68"));
+        statusBar()->showMessage(QString("Audio track %1 added.").arg(index + 1), 2500);
+    });
+    connect(addEffectsTrackButton, &QPushButton::clicked, this, [this] {
+        const int index = m_timelineWidget->addTrack(
+            QString("SFX%1  Effects").arg(m_timelineWidget->lastTrackOfType(TimelineWidget::EffectsTrack) + 1), QColor("#a47736"));
+        statusBar()->showMessage(QString("Effects track %1 added.").arg(index + 1), 2500);
     });
 
     connect(snapButton, &QPushButton::toggled, this, [this, snapButton](bool enabled) {
