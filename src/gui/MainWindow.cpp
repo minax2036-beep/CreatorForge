@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QLineEdit>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -490,8 +491,9 @@ void MainWindow::createTimelinePanel()
             "Audio clip added to A1 (timeline placement only; playback integration is next).", 5000);
     });
 
-    connect(snapButton, &QPushButton::toggled, this, [snapButton](bool enabled) {
+    connect(snapButton, &QPushButton::toggled, this, [this, snapButton](bool enabled) {
         snapButton->setText(enabled ? "Snap: ON" : "Snap: OFF");
+        m_timelineWidget->setSnapEnabled(enabled);
     });
 
     dock->setWidget(container);
