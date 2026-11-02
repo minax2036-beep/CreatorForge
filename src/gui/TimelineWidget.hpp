@@ -25,6 +25,8 @@ public:
 
     explicit TimelineWidget(QWidget *parent = nullptr);
 
+    int addTrack(const QString &name, const QColor &color);
+    int lastTrackOfType(int type) const;
     int addClip(int track, const QString &name, double startSeconds,
                 double durationSeconds, const QColor &color,
                 const QString &sourcePath = {},
@@ -56,12 +58,17 @@ private:
         QColor color;
     };
 
+    struct TrackInfo {
+        QString name;
+        int type = 0;
+        QColor color;
+    };
+
     enum class DragMode { None, Move, ResizeLeft, ResizeRight };
 
     static constexpr int LabelWidth = 92;
     static constexpr int RulerHeight = 28;
     static constexpr int TrackHeight = 42;
-    static constexpr int TrackCount = 5;
     static constexpr double PixelsPerSecond = 40.0;
 
     QRectF clipRect(const Clip &clip) const;
@@ -69,6 +76,7 @@ private:
     Clip *clipAt(const QPoint &point, DragMode *mode = nullptr);
     void updateCanvasSize();
 
+    std::vector<TrackInfo> m_tracks;
     std::vector<Clip> m_clips;
     int m_nextId = 1;
     int m_selectedId = -1;
