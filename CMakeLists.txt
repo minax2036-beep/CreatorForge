@@ -14,7 +14,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets)
 
 add_executable(creatorforge
     src/main.cpp
@@ -24,7 +24,7 @@ add_executable(creatorforge
     src/gui/TimelineWidget.hpp
 )
 
-target_link_libraries(creatorforge PRIVATE Qt6::Widgets)
+target_link_libraries(creatorforge PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::MultimediaWidgets)
 
 target_include_directories(creatorforge PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
