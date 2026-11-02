@@ -48,7 +48,6 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setWindowTitle("CreatorForge");
-    setWindowIcon(QIcon());
     resize(1500, 940);
     setMinimumSize(1050, 680);
 
