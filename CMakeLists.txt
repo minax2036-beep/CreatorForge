@@ -20,6 +20,8 @@ add_executable(creatorforge
     src/main.cpp
     src/gui/MainWindow.cpp
     src/gui/MainWindow.hpp
+    src/gui/TimelineWidget.cpp
+    src/gui/TimelineWidget.hpp
 )
 
 target_link_libraries(creatorforge PRIVATE Qt6::Widgets)
