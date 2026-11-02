@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QPoint>
+#include <QRectF>
 #include <QSize>
 #include <QString>
 #include <QWidget>
@@ -24,7 +25,8 @@ public:
     explicit TimelineWidget(QWidget *parent = nullptr);
 
     int addClip(int track, const QString &name, double startSeconds,
-                double durationSeconds, const QColor &color);
+                double durationSeconds, const QColor &color,
+                const QString &sourcePath = {});
     void setSnapEnabled(bool enabled);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -41,6 +43,7 @@ private:
         int id = 0;
         int track = 0;
         QString name;
+        QString sourcePath;
         double start = 0.0;
         double duration = 1.0;
         QColor color;
