@@ -486,7 +486,7 @@ void MainWindow::createTimelinePanel()
 
         const QString name = QFileInfo(path).fileName();
         m_timelineWidget->addClip(TimelineWidget::AudioTrack,
-                                  name, start, duration, QColor("#287c68"));
+                                  name, start, duration, QColor("#287c68"), path);
         statusBar()->showMessage(
             "Audio clip added to A1 (timeline placement only; playback integration is next).", 5000);
     });
