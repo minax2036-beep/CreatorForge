@@ -17,6 +17,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QPolygon>
 #include <QProcess>
 #include <QScrollArea>
 #include <QSlider>
@@ -362,11 +363,19 @@ void MainWindow::createCentralWorkspace()
     transport->addWidget(previousButton);
     transport->addWidget(playButton);
     transport->addWidget(nextButton);
+    m_videoAudioButton = new QPushButton("Video Audio: ON", previewPanel);
+    m_videoAudioButton->setCheckable(true);
+    m_videoAudioButton->setChecked(false);
+    m_videoAudioButton->setToolTip("Mute or unmute audio embedded in the video");
+    transport->addWidget(m_videoAudioButton);
     transport->addStretch();
     m_timecodeLabel = new QLabel("00:00:00.000", previewPanel);
     m_timecodeLabel->setStyleSheet("color: #aeb7c6; font-family: monospace; padding-right: 8px;");
     transport->addWidget(m_timecodeLabel);
     previewLayout->addLayout(transport);
+
+    connect(m_videoAudioButton, &QPushButton::toggled, this,
+            [this](bool muted) { setVideoAudioMuted(muted); });
 
     connect(playButton, &QPushButton::clicked, this, [this] {
         if (m_mediaPlayer->playbackState() == QMediaPlayer::PlayingState)
@@ -397,6 +406,8 @@ void MainWindow::createCentralWorkspace()
         m_timecodeLabel->setText(time);
         if (m_timelineTimeLabel)
             m_timelineTimeLabel->setText(time);
+        if (m_timelineWidget)
+            m_timelineWidget->setPlayheadSeconds(position / 1000.0);
     });
     connect(m_positionSlider, &QSlider::sliderPressed, this, [this] {
         m_isSeeking = true;
@@ -549,6 +560,9 @@ void MainWindow::createTimelinePanel()
     layout->addLayout(toolbar);
 
     m_timelineWidget = new TimelineWidget(container);
+    m_timelineWidget->setSeekCallback([this](double seconds) {
+        m_mediaPlayer->setPosition(static_cast<qint64>(seconds * 1000.0));
+    });
 
     auto *scrollArea = new QScrollArea(container);
     scrollArea->setWidget(m_timelineWidget);
@@ -659,6 +673,13 @@ void MainWindow::createTimelinePanel()
     addDockWidget(Qt::BottomDockWidgetArea, dock);
 }
 
+
+void MainWindow::setVideoAudioMuted(bool muted)
+{
+    m_audioOutput->setMuted(muted);
+    if (m_videoAudioButton)
+        m_videoAudioButton->setText(muted ? "Video Audio: OFF" : "Video Audio: ON");
+}
 
 void MainWindow::setPreviewMedia(const QString &path)
 {
