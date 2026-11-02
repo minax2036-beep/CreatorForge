@@ -32,6 +32,22 @@ TimelineWidget::TimelineWidget(QWidget *parent)
     updateCanvasSize();
 }
 
+
+void TimelineWidget::setPlayheadSeconds(double seconds)
+{
+    m_playheadSeconds = std::max(0.0, seconds);
+    const int playheadX = LabelWidth
+        + static_cast<int>(m_playheadSeconds * PixelsPerSecond);
+    if (playheadX > width() - 20)
+        updateCanvasSize();
+    update();
+}
+
+void TimelineWidget::setSeekCallback(std::function<void(double)> callback)
+{
+    m_seekCallback = std::move(callback);
+}
+
 void TimelineWidget::setSnapEnabled(bool enabled)
 {
     m_snapEnabled = enabled;
@@ -196,6 +212,17 @@ void TimelineWidget::paintEvent(QPaintEvent *event)
                              rect.right() - 3, rect.bottom() - 4);
         }
     }
+
+    const int playheadX = LabelWidth
+        + static_cast<int>(m_playheadSeconds * PixelsPerSecond);
+    painter.setPen(QPen(QColor("#ff5b62"), 2));
+    painter.drawLine(playheadX, 0, playheadX, height());
+    painter.setBrush(QColor("#ff5b62"));
+    painter.setPen(Qt::NoPen);
+    QPolygon marker;
+    marker << QPoint(playheadX - 6, 0) << QPoint(playheadX + 6, 0)
+           << QPoint(playheadX, 9);
+    painter.drawPolygon(marker);
 }
 
 void TimelineWidget::mousePressEvent(QMouseEvent *event)
@@ -206,11 +233,18 @@ void TimelineWidget::mousePressEvent(QMouseEvent *event)
     }
 
     DragMode mode = DragMode::None;
-    Clip *clip = clipAt(event->position().toPoint(), &mode);
+    const QPoint clickPosition = event->position().toPoint();
+    Clip *clip = clipAt(clickPosition, &mode);
     if (!clip) {
         m_selectedId = -1;
         m_draggedId = -1;
         m_dragMode = DragMode::None;
+
+        if (clickPosition.x() >= LabelWidth && m_seekCallback) {
+            const double seconds = std::max(
+                0.0, (clickPosition.x() - LabelWidth) / PixelsPerSecond);
+            m_seekCallback(seconds);
+        }
         update();
         return;
     }
