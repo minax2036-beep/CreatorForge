@@ -39,7 +39,9 @@ void TimelineWidget::setSnapEnabled(bool enabled)
 
 int TimelineWidget::addClip(int track, const QString &name, double startSeconds,
                             double durationSeconds, const QColor &color,
-                            const QString &sourcePath)
+                            const QString &sourcePath,
+                            double sourceDurationSeconds,
+                            double sourceOffsetSeconds)
 {
     if (track < 0 || track >= TrackCount || durationSeconds <= 0.0)
         return -1;
@@ -50,7 +52,15 @@ int TimelineWidget::addClip(int track, const QString &name, double startSeconds,
     clip.name = name;
     clip.sourcePath = sourcePath;
     clip.start = std::max(0.0, startSeconds);
+    clip.sourceDuration = std::max(0.0, sourceDurationSeconds);
+    clip.sourceOffset = std::max(0.0, sourceOffsetSeconds);
     clip.duration = std::max(0.25, durationSeconds);
+    if (clip.sourceDuration > 0.0) {
+        clip.sourceOffset = std::min(clip.sourceOffset, clip.sourceDuration);
+        clip.duration = std::min(clip.duration,
+                                 clip.sourceDuration - clip.sourceOffset);
+    }
+    clip.duration = std::max(0.25, clip.duration);
     clip.color = color;
     m_clips.push_back(clip);
 
@@ -211,6 +221,7 @@ void TimelineWidget::mousePressEvent(QMouseEvent *event)
     m_pressPosition = event->position().toPoint();
     m_originalStart = clip->start;
     m_originalDuration = clip->duration;
+    m_originalSourceOffset = clip->sourceOffset;
     setCursor(mode == DragMode::Move ? Qt::SizeAllCursor : Qt::SizeHorCursor);
     update();
 }
@@ -234,13 +245,24 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *event)
             it->start = std::max(0.0, snap(m_originalStart + delta));
         } else if (m_dragMode == DragMode::ResizeRight) {
             const double end = snap(m_originalStart + m_originalDuration + delta);
-            it->duration = std::max(0.25, end - it->start);
+            double newDuration = std::max(0.25, end - it->start);
+            if (it->sourceDuration > 0.0)
+                newDuration = std::min(newDuration,
+                    it->sourceDuration - it->sourceOffset);
+            it->duration = std::max(0.25, newDuration);
         } else if (m_dragMode == DragMode::ResizeLeft) {
             const double newStart = std::max(0.0,
                 std::min(snap(m_originalStart + delta),
                          m_originalStart + m_originalDuration - 0.25));
+            const double startDelta = newStart - m_originalStart;
             it->start = newStart;
-            it->duration = m_originalDuration + m_originalStart - newStart;
+            it->sourceOffset = std::max(0.0,
+                m_originalSourceOffset + startDelta);
+            it->duration = m_originalDuration - startDelta;
+            if (it->sourceDuration > 0.0)
+                it->duration = std::min(it->duration,
+                    it->sourceDuration - it->sourceOffset);
+            it->duration = std::max(0.25, it->duration);
         }
 
         updateCanvasSize();
