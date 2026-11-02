@@ -27,7 +27,14 @@ TimelineWidget::TimelineWidget(QWidget *parent)
     : QWidget(parent)
 {
     setMouseTracking(true);
-    setMinimumHeight(RulerHeight + TrackCount * TrackHeight + 2);
+    m_tracks = {
+        {"V1  Video", VideoTrack, QColor("#3975b9")},
+        {"V2  Overlay", OverlayTrack, QColor("#527fa8")},
+        {"T1  Subtitle", SubtitleTrack, QColor("#7654a8")},
+        {"A1  Audio", AudioTrack, QColor("#287c68")},
+        {"A2  Effects", EffectsTrack, QColor("#a47736")}
+    };
+    setMinimumHeight(RulerHeight + static_cast<int>(m_tracks.size()) * TrackHeight + 2);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     updateCanvasSize();
 }
@@ -53,13 +60,32 @@ void TimelineWidget::setSnapEnabled(bool enabled)
     m_snapEnabled = enabled;
 }
 
+int TimelineWidget::addTrack(const QString &name, const QColor &color)
+{
+    int type = VideoTrack;
+    if (name.startsWith("T")) type = SubtitleTrack;
+    else if (name.startsWith("A")) type = AudioTrack;
+    else if (name.startsWith("SFX")) type = EffectsTrack;
+    else if (name.startsWith("V2") || name.startsWith("Overlay")) type = OverlayTrack;
+    m_tracks.push_back({name, type, color});
+    updateCanvasSize();
+    return static_cast<int>(m_tracks.size()) - 1;
+}
+
+int TimelineWidget::lastTrackOfType(int type) const
+{
+    for (int i = static_cast<int>(m_tracks.size()) - 1; i >= 0; --i)
+        if (m_tracks.at(i).type == type) return i;
+    return 0;
+}
+
 int TimelineWidget::addClip(int track, const QString &name, double startSeconds,
                             double durationSeconds, const QColor &color,
                             const QString &sourcePath,
                             double sourceDurationSeconds,
                             double sourceOffsetSeconds)
 {
-    if (track < 0 || track >= TrackCount || durationSeconds <= 0.0)
+    if (track < 0 || track >= static_cast<int>(m_tracks.size()) || durationSeconds <= 0.0)
         return -1;
 
     Clip clip;
@@ -93,7 +119,7 @@ QSize TimelineWidget::sizeHint() const
 
     const int width = LabelWidth
         + static_cast<int>(std::ceil((latestEnd + 5.0) * PixelsPerSecond));
-    return QSize(width, RulerHeight + TrackCount * TrackHeight + 2);
+    return QSize(width, RulerHeight + static_cast<int>(m_tracks.size()) * TrackHeight + 2);
 }
 
 QSize TimelineWidget::minimumSizeHint() const
@@ -116,7 +142,7 @@ int TimelineWidget::trackAtY(int y) const
         return -1;
 
     const int track = (y - RulerHeight) / TrackHeight;
-    return (track >= 0 && track < TrackCount) ? track : -1;
+    return (track >= 0 && track < static_cast<int>(m_tracks.size())) ? track : -1;
 }
 
 TimelineWidget::Clip *TimelineWidget::clipAt(const QPoint &point, DragMode *mode)
@@ -173,19 +199,15 @@ void TimelineWidget::paintEvent(QPaintEvent *event)
                          Qt::AlignVCenter | Qt::AlignLeft, formatTime(second));
     }
 
-    const QStringList trackNames = {
-        "V1  Video", "V2  Overlay", "T1  Subtitle", "A1  Audio", "A2  Effects"
-    };
-
-    for (int track = 0; track < TrackCount; ++track) {
+    for (int track = 0; track < static_cast<int>(m_tracks.size()); ++track) {
         const int y = RulerHeight + track * TrackHeight;
         painter.fillRect(QRect(LabelWidth, y, width() - LabelWidth, TrackHeight),
                          track % 2 == 0 ? QColor("#1b2028") : QColor("#1e242d"));
         painter.setPen(QPen(QColor("#303744"), 1));
         painter.drawLine(0, y + TrackHeight, width(), y + TrackHeight);
-        painter.setPen(QColor("#aeb8c7"));
+        painter.setPen(m_tracks.at(track).color.lighter(135));
         painter.drawText(QRect(9, y, LabelWidth - 16, TrackHeight),
-                         Qt::AlignVCenter | Qt::AlignLeft, trackNames.at(track));
+                         Qt::AlignVCenter | Qt::AlignLeft, m_tracks.at(track).name);
     }
 
     for (const Clip &clip : m_clips) {
