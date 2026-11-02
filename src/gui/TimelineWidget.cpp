@@ -33,6 +33,11 @@ TimelineWidget::TimelineWidget(QWidget *parent)
     updateCanvasSize();
 }
 
+void TimelineWidget::setSnapEnabled(bool enabled)
+{
+    m_snapEnabled = enabled;
+}
+
 int TimelineWidget::addClip(int track, const QString &name, double startSeconds,
                             double durationSeconds, const QColor &color)
 {
@@ -220,13 +225,18 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *event)
         const double delta = (event->position().x() - m_pressPosition.x())
                            / PixelsPerSecond;
 
+        const auto snap = [this](double value) {
+            return m_snapEnabled ? std::round(value * 2.0) / 2.0 : value;
+        };
+
         if (m_dragMode == DragMode::Move) {
-            it->start = std::max(0.0, m_originalStart + delta);
+            it->start = std::max(0.0, snap(m_originalStart + delta));
         } else if (m_dragMode == DragMode::ResizeRight) {
-            it->duration = std::max(0.25, m_originalDuration + delta);
+            const double end = snap(m_originalStart + m_originalDuration + delta);
+            it->duration = std::max(0.25, end - it->start);
         } else if (m_dragMode == DragMode::ResizeLeft) {
             const double newStart = std::max(0.0,
-                std::min(m_originalStart + delta,
+                std::min(snap(m_originalStart + delta),
                          m_originalStart + m_originalDuration - 0.25));
             it->start = newStart;
             it->duration = m_originalDuration + m_originalStart - newStart;
