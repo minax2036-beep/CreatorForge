@@ -3,6 +3,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QAudioOutput>
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -18,6 +19,11 @@
 #include <QPushButton>
 #include <QProcess>
 #include <QScrollArea>
+#include <QSlider>
+#include <QStackedWidget>
+#include <QMediaPlayer>
+#include <QVideoWidget>
+#include <QUrl>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QToolButton>
@@ -35,6 +41,20 @@ QLabel *makeSectionLabel(const QString &text, QWidget *parent)
     auto *label = new QLabel(text, parent);
     label->setObjectName("sectionLabel");
     return label;
+}
+
+QString formatTimecode(qint64 milliseconds)
+{
+    const qint64 totalSeconds = qMax<qint64>(0, milliseconds / 1000);
+    const qint64 hours = totalSeconds / 3600;
+    const qint64 minutes = (totalSeconds / 60) % 60;
+    const qint64 seconds = totalSeconds % 60;
+    const qint64 millis = qMax<qint64>(0, milliseconds % 1000);
+    return QString("%1:%2:%3.%4")
+        .arg(hours, 2, 10, QChar('0'))
+        .arg(minutes, 2, 10, QChar('0'))
+        .arg(seconds, 2, 10, QChar('0'))
+        .arg(millis, 3, 10, QChar('0'));
 }
 
 double probeMediaDuration(const QString &path)
@@ -173,13 +193,17 @@ MainWindow::MainWindow(QWidget *parent)
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
     )");
 
+    m_mediaPlayer = new QMediaPlayer(this);
+    m_audioOutput = new QAudioOutput(this);
+    m_mediaPlayer->setAudioOutput(m_audioOutput);
+
     createActions();
     createCentralWorkspace();
     createMediaBrowser();
     createPropertiesPanel();
     createTimelinePanel();
 
-    statusBar()->showMessage("Ready  •  CreatorForge 0.1.0");
+    statusBar()->showMessage("Ready  •  CreatorForge 0.2.0 — Qt Multimedia");
 }
 
 void MainWindow::createActions()
@@ -211,7 +235,8 @@ void MainWindow::createActions()
             this, "Import Media", {},
             "Media Files (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.mp4 *.mkv *.mov *.mp3 *.wav *.flac);;All Files (*)");
         for (const QString &path : paths) {
-            m_mediaList->addItem(QFileInfo(path).fileName());
+            auto *item = new QListWidgetItem(QFileInfo(path).fileName(), m_mediaList);
+            item->setData(Qt::UserRole, path);
         }
         if (!paths.isEmpty()) {
             statusBar()->showMessage(QString("Imported %1 item(s) into the session").arg(paths.size()), 5000);
@@ -306,12 +331,25 @@ void MainWindow::createCentralWorkspace()
     previewHeader->addWidget(zoomButton);
     previewLayout->addLayout(previewHeader);
 
+    m_previewStack = new QStackedWidget(previewPanel);
     m_previewLabel = new QLabel(
-        "CREATORFORGE\n\nPreview will appear here\nImport media to begin", previewPanel);
+        "CREATORFORGE\n\nPreview will appear here\nAdd a video clip to begin", m_previewStack);
     m_previewLabel->setObjectName("previewCanvas");
     m_previewLabel->setAlignment(Qt::AlignCenter);
     m_previewLabel->setMinimumSize(420, 250);
-    previewLayout->addWidget(m_previewLabel, 1);
+
+    m_videoWidget = new QVideoWidget(m_previewStack);
+    m_videoWidget->setAspectRatioMode(Qt::KeepAspectRatio);
+    m_previewStack->addWidget(m_previewLabel);
+    m_previewStack->addWidget(m_videoWidget);
+    m_previewStack->setCurrentWidget(m_previewLabel);
+    m_mediaPlayer->setVideoOutput(m_videoWidget);
+    previewLayout->addWidget(m_previewStack, 1);
+
+    m_positionSlider = new QSlider(Qt::Horizontal, previewPanel);
+    m_positionSlider->setRange(0, 0);
+    m_positionSlider->setEnabled(false);
+    previewLayout->addWidget(m_positionSlider);
 
     auto *transport = new QHBoxLayout();
     transport->addStretch();
@@ -325,10 +363,57 @@ void MainWindow::createCentralWorkspace()
     transport->addWidget(playButton);
     transport->addWidget(nextButton);
     transport->addStretch();
-    auto *timecode = new QLabel("00:00:00:00", previewPanel);
-    timecode->setStyleSheet("color: #aeb7c6; font-family: monospace; padding-right: 8px;");
-    transport->addWidget(timecode);
+    m_timecodeLabel = new QLabel("00:00:00.000", previewPanel);
+    m_timecodeLabel->setStyleSheet("color: #aeb7c6; font-family: monospace; padding-right: 8px;");
+    transport->addWidget(m_timecodeLabel);
     previewLayout->addLayout(transport);
+
+    connect(playButton, &QPushButton::clicked, this, [this] {
+        if (m_mediaPlayer->playbackState() == QMediaPlayer::PlayingState)
+            m_mediaPlayer->pause();
+        else if (!m_mediaPlayer->source().isEmpty())
+            m_mediaPlayer->play();
+        else
+            statusBar()->showMessage("Add a video clip first.", 3000);
+    });
+    connect(previousButton, &QPushButton::clicked, this, [this] {
+        m_mediaPlayer->setPosition(0);
+    });
+    connect(nextButton, &QPushButton::clicked, this, [this] {
+        m_mediaPlayer->setPosition(m_mediaPlayer->duration());
+    });
+    connect(m_mediaPlayer, &QMediaPlayer::playbackStateChanged, this,
+            [playButton](QMediaPlayer::PlaybackState state) {
+        playButton->setText(state == QMediaPlayer::PlayingState ? "Ⅱ" : "▶");
+    });
+    connect(m_mediaPlayer, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
+        m_positionSlider->setRange(0, static_cast<int>(qMin<qint64>(duration, 2147483647)));
+        m_positionSlider->setEnabled(duration > 0);
+    });
+    connect(m_mediaPlayer, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+        if (!m_isSeeking)
+            m_positionSlider->setValue(static_cast<int>(position));
+        const QString time = formatTimecode(position);
+        m_timecodeLabel->setText(time);
+        if (m_timelineTimeLabel)
+            m_timelineTimeLabel->setText(time);
+    });
+    connect(m_positionSlider, &QSlider::sliderPressed, this, [this] {
+        m_isSeeking = true;
+    });
+    connect(m_positionSlider, &QSlider::sliderMoved, this, [this](int position) {
+        m_mediaPlayer->setPosition(position);
+    });
+    connect(m_positionSlider, &QSlider::sliderReleased, this, [this] {
+        m_mediaPlayer->setPosition(m_positionSlider->value());
+        m_isSeeking = false;
+    });
+    connect(m_mediaPlayer, &QMediaPlayer::errorOccurred, this,
+            [this](QMediaPlayer::Error, const QString &errorText) {
+        m_previewStack->setCurrentWidget(m_previewLabel);
+        m_previewLabel->setText("Unable to play this media.\n\n" + errorText);
+        statusBar()->showMessage("Media playback error: " + errorText, 8000);
+    });
 
     root->addWidget(previewPanel, 1);
     setCentralWidget(central);
@@ -358,6 +443,15 @@ void MainWindow::createMediaBrowser()
     m_mediaList->setAlternatingRowColors(true);
     m_mediaList->setSpacing(2);
     layout->addWidget(m_mediaList, 1);
+
+    connect(m_mediaList, &QListWidget::itemDoubleClicked, this,
+            [this](QListWidgetItem *item) {
+        const QString path = item->data(Qt::UserRole).toString();
+        const QString suffix = QFileInfo(path).suffix().toLower();
+        const QStringList videoTypes = {"mp4", "mkv", "mov", "webm", "avi", "m4v"};
+        if (!path.isEmpty() && videoTypes.contains(suffix))
+            setPreviewMedia(path);
+    });
 
     auto *hint = new QLabel("Media imported here is currently session-only.", container);
     hint->setObjectName("mutedLabel");
@@ -437,9 +531,9 @@ void MainWindow::createTimelinePanel()
     toolbar->addWidget(makeSectionLabel("SEQUENCE 01", container));
     toolbar->addSpacing(12);
 
-    auto *time = new QLabel("00:00:00:00", container);
-    time->setStyleSheet("font-family: monospace; color: #c4ccd8;");
-    toolbar->addWidget(time);
+    m_timelineTimeLabel = new QLabel("00:00:00.000", container);
+    m_timelineTimeLabel->setStyleSheet("font-family: monospace; color: #c4ccd8;");
+    toolbar->addWidget(m_timelineTimeLabel);
     toolbar->addStretch();
 
     auto *addVideoButton = new QPushButton("+ Video", container);
@@ -499,7 +593,8 @@ void MainWindow::createTimelinePanel()
         m_timelineWidget->addClip(TimelineWidget::VideoTrack,
             QFileInfo(path).fileName(), start, duration, QColor("#3975b9"),
             path, mediaDuration);
-        statusBar()->showMessage("Video clip added to V1.", 3000);
+        setPreviewMedia(path);
+        statusBar()->showMessage("Video clip added to V1 and loaded in Viewer.", 3000);
     });
 
     connect(addSubtitleButton, &QPushButton::clicked, this, [this] {
@@ -562,6 +657,22 @@ void MainWindow::createTimelinePanel()
 
     dock->setWidget(container);
     addDockWidget(Qt::BottomDockWidgetArea, dock);
+}
+
+
+void MainWindow::setPreviewMedia(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+
+    m_mediaPlayer->stop();
+    m_mediaPlayer->setSource(QUrl::fromLocalFile(path));
+    m_positionSlider->setValue(0);
+    m_positionSlider->setRange(0, 0);
+    m_previewStack->setCurrentWidget(m_videoWidget);
+    m_timecodeLabel->setText("00:00:00.000");
+    m_timelineTimeLabel->setText("00:00:00.000");
+    statusBar()->showMessage("Loaded in Viewer: " + QFileInfo(path).fileName(), 4000);
 }
 
 } // namespace CreatorForge
