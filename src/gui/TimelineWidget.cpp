@@ -87,7 +87,7 @@ int TimelineWidget::addClip(int track, const QString &name, double startSeconds,
 
 QSize TimelineWidget::sizeHint() const
 {
-    double latestEnd = 60.0;
+    double latestEnd = std::max(60.0, m_playheadSeconds);
     for (const Clip &clip : m_clips)
         latestEnd = std::max(latestEnd, clip.start + clip.duration);
 
