@@ -1,10 +1,12 @@
 #include "MainWindow.hpp"
+#include "TimelineWidget.hpp"
 
 #include <QAction>
 #include <QApplication>
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QInputDialog>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -13,6 +15,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QToolButton>
@@ -20,6 +23,7 @@
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QColor>
 
 namespace CreatorForge {
 namespace {
@@ -29,17 +33,6 @@ QLabel *makeSectionLabel(const QString &text, QWidget *parent)
     auto *label = new QLabel(text, parent);
     label->setObjectName("sectionLabel");
     return label;
-}
-
-QFrame *makeTrack(const QString &name, const QString &color, QWidget *parent)
-{
-    auto *frame = new QFrame(parent);
-    frame->setObjectName("timelineClip");
-    frame->setMinimumHeight(28);
-    frame->setStyleSheet(QString(
-        "QFrame#timelineClip { background: %1; border: 1px solid %2; border-radius: 4px; }")
-        .arg(color, color));
-    return frame;
 }
 
 } // namespace
@@ -412,7 +405,7 @@ void MainWindow::createTimelinePanel()
     auto *dock = new QDockWidget("TIMELINE", this);
     dock->setObjectName("TimelineDock");
     dock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
-    dock->setMinimumHeight(175);
+    dock->setMinimumHeight(225);
 
     auto *container = new QWidget(dock);
     auto *layout = new QVBoxLayout(container);
@@ -422,30 +415,84 @@ void MainWindow::createTimelinePanel()
     auto *toolbar = new QHBoxLayout();
     toolbar->addWidget(makeSectionLabel("SEQUENCE 01", container));
     toolbar->addSpacing(12);
+
     auto *time = new QLabel("00:00:00:00", container);
     time->setStyleSheet("font-family: monospace; color: #c4ccd8;");
     toolbar->addWidget(time);
     toolbar->addStretch();
-    toolbar->addWidget(new QLabel("Snap", container));
-    auto *snapButton = new QPushButton("ON", container);
+
+    auto *addSubtitleButton = new QPushButton("+ Subtitle", container);
+    auto *addAudioButton = new QPushButton("+ Audio", container);
+    auto *snapButton = new QPushButton("Snap: ON", container);
     snapButton->setCheckable(true);
     snapButton->setChecked(true);
-    snapButton->setFixedWidth(48);
+    toolbar->addWidget(addSubtitleButton);
+    toolbar->addWidget(addAudioButton);
     toolbar->addWidget(snapButton);
     layout->addLayout(toolbar);
 
-    const QStringList tracks = {"V1  Video", "V2  Overlay", "A1  Audio"};
-    const QStringList colors = {"#315d86", "#65518c", "#39715f"};
-    for (int i = 0; i < tracks.size(); ++i) {
-        auto *row = new QHBoxLayout();
-        row->setSpacing(8);
-        auto *name = new QLabel(tracks.at(i), container);
-        name->setMinimumWidth(105);
-        name->setStyleSheet("color: #aeb7c6;");
-        row->addWidget(name);
-        row->addWidget(makeTrack(tracks.at(i), colors.at(i), container), 1);
-        layout->addLayout(row);
-    }
+    m_timelineWidget = new TimelineWidget(container);
+
+    auto *scrollArea = new QScrollArea(container);
+    scrollArea->setWidget(m_timelineWidget);
+    scrollArea->setWidgetResizable(false);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setStyleSheet(
+        "QScrollArea { background: #171b22; border: 1px solid #303744; border-radius: 4px; }");
+    layout->addWidget(scrollArea, 1);
+
+    connect(addSubtitleButton, &QPushButton::clicked, this, [this] {
+        bool accepted = false;
+        const QString text = QInputDialog::getText(
+            this, "Add Subtitle", "Subtitle text:", QLineEdit::Normal, {}, &accepted);
+        if (!accepted || text.trimmed().isEmpty())
+            return;
+
+        const double start = QInputDialog::getDouble(
+            this, "Subtitle Start", "Start time (seconds):", 0.0, 0.0, 86400.0, 2, &accepted);
+        if (!accepted)
+            return;
+
+        const double duration = QInputDialog::getDouble(
+            this, "Subtitle Duration", "Duration (seconds):", 3.0, 0.25, 86400.0, 2, &accepted);
+        if (!accepted)
+            return;
+
+        m_timelineWidget->addClip(TimelineWidget::SubtitleTrack,
+                                  text, start, duration, QColor("#7654a8"));
+        statusBar()->showMessage("Subtitle clip added to T1.", 3000);
+    });
+
+    connect(addAudioButton, &QPushButton::clicked, this, [this] {
+        const QString path = QFileDialog::getOpenFileName(
+            this, "Add Audio Clip", {},
+            "Audio Files (*.mp3 *.wav *.flac *.ogg *.m4a *.aac);;All Files (*)");
+        if (path.isEmpty())
+            return;
+
+        bool accepted = false;
+        const double start = QInputDialog::getDouble(
+            this, "Audio Start", "Start time (seconds):", 0.0, 0.0, 86400.0, 2, &accepted);
+        if (!accepted)
+            return;
+
+        const double duration = QInputDialog::getDouble(
+            this, "Audio Duration", "Clip duration (seconds):", 10.0, 0.25, 86400.0, 2, &accepted);
+        if (!accepted)
+            return;
+
+        const QString name = QFileInfo(path).fileName();
+        m_timelineWidget->addClip(TimelineWidget::AudioTrack,
+                                  name, start, duration, QColor("#287c68"));
+        statusBar()->showMessage(
+            "Audio clip added to A1 (timeline placement only; playback integration is next).", 5000);
+    });
+
+    connect(snapButton, &QPushButton::toggled, this, [snapButton](bool enabled) {
+        snapButton->setText(enabled ? "Snap: ON" : "Snap: OFF");
+    });
 
     dock->setWidget(container);
     addDockWidget(Qt::BottomDockWidgetArea, dock);
