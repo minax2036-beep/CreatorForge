@@ -5,7 +5,6 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
-#include <QToolTip>
 
 #include <algorithm>
 #include <cmath>
@@ -39,7 +38,8 @@ void TimelineWidget::setSnapEnabled(bool enabled)
 }
 
 int TimelineWidget::addClip(int track, const QString &name, double startSeconds,
-                            double durationSeconds, const QColor &color)
+                            double durationSeconds, const QColor &color,
+                            const QString &sourcePath)
 {
     if (track < 0 || track >= TrackCount || durationSeconds <= 0.0)
         return -1;
@@ -48,6 +48,7 @@ int TimelineWidget::addClip(int track, const QString &name, double startSeconds,
     clip.id = m_nextId++;
     clip.track = track;
     clip.name = name;
+    clip.sourcePath = sourcePath;
     clip.start = std::max(0.0, startSeconds);
     clip.duration = std::max(0.25, durationSeconds);
     clip.color = color;
