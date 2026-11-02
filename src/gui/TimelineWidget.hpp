@@ -26,7 +26,9 @@ public:
 
     int addClip(int track, const QString &name, double startSeconds,
                 double durationSeconds, const QColor &color,
-                const QString &sourcePath = {});
+                const QString &sourcePath = {},
+                double sourceDurationSeconds = 0.0,
+                double sourceOffsetSeconds = 0.0);
     void setSnapEnabled(bool enabled);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -46,6 +48,8 @@ private:
         QString sourcePath;
         double start = 0.0;
         double duration = 1.0;
+        double sourceDuration = 0.0;
+        double sourceOffset = 0.0;
         QColor color;
     };
 
@@ -70,6 +74,7 @@ private:
     QPoint m_pressPosition;
     double m_originalStart = 0.0;
     double m_originalDuration = 1.0;
+    double m_originalSourceOffset = 0.0;
     bool m_snapEnabled = true;
 };
 
