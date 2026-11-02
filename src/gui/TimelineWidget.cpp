@@ -125,7 +125,7 @@ QSize TimelineWidget::sizeHint() const
 QSize TimelineWidget::minimumSizeHint() const
 {
     return QSize(LabelWidth + 60 * static_cast<int>(PixelsPerSecond),
-                 RulerHeight + TrackCount * TrackHeight + 2);
+                 RulerHeight + static_cast<int>(m_tracks.size()) * TrackHeight + 2);
 }
 
 QRectF TimelineWidget::clipRect(const Clip &clip) const
